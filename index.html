@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VRM Character Sheet Exporter</title>
+<style>
+  :root { --bg:#f4f4f6; --panel:#fff; --line:#ddd; --text:#222; --accent:#6a5acd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:12px 16px; background:var(--panel); border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  main { display:grid; grid-template-columns: 320px 1fr; height: calc(100vh - 53px); }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
+  #stage { position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#ccc; }
+  canvas { max-width:100%; max-height:100%; background:
+    linear-gradient(45deg,#bbb 25%,transparent 25%,transparent 75%,#bbb 75%),
+    linear-gradient(45deg,#bbb 25%,transparent 25%,transparent 75%,#bbb 75%);
+    background-size:20px 20px; background-position:0 0,10px 10px; background-color:#e6e6e6; }
+  section { margin-bottom:16px; }
+  h2 { font-size:13px; margin:0 0 8px; color:#666; text-transform:uppercase; letter-spacing:.04em; }
+  label { display:block; font-size:13px; margin:6px 0 2px; }
+  input[type=number], select { width:100%; padding:6px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  button { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fafafa; cursor:pointer; font-size:13px; width:100%; margin-top:4px; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .presets { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .hint { font-size:12px; color:#666; line-height:1.5; }
+  #drop { border:2px dashed var(--line); border-radius:8px; padding:14px; text-align:center; font-size:13px; color:#666; }
+  #drop.over { border-color:var(--accent); color:var(--accent); }
+  #status { font-size:12px; color:#444; min-height:1.4em; }
+  .val { font-size:12px; color:#666; text-align:right; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VRM Character Sheet Exporter</h1>
+  <span class="hint">VRMを読み込み、決まった構図を高解像度PNGで保存します。</span>
+</header>
+<main>
+<aside>
+  <section>
+    <h2>1. VRM</h2>
+    <div id="drop">ここにVRMをドロップ<br>または<br><input type="file" id="file" accept=".vrm" /></div>
+    <div id="status"></div>
+  </section>
+
+  <section>
+    <h2>2. 構図プリセット</h2>
+    <div class="presets">
+      <button data-preset="front">全身 正面</button>
+      <button data-preset="side">全身 側面</button>
+      <button data-preset="back">全身 背面</button>
+      <button data-preset="bust">胸上 正面</button>
+      <button data-preset="face">顔 正面</button>
+      <button data-preset="face34">顔 斜め</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. カメラ微調整</h2>
+    <label>向き（度） <span class="val" id="yawVal">0</span></label>
+    <input type="range" id="yaw" min="-180" max="180" step="1" value="0" />
+    <label>見下ろし（度） <span class="val" id="pitchVal">0</span></label>
+    <input type="range" id="pitch" min="-30" max="30" step="1" value="0" />
+    <label>距離 <span class="val" id="distVal">3.0</span></label>
+    <input type="range" id="dist" min="0.3" max="6" step="0.01" value="3" />
+    <label>高さ（注視点） <span class="val" id="hVal">0.9</span></label>
+    <input type="range" id="h" min="0" max="2" step="0.01" value="0.9" />
+    <label>画角（度） <span class="val" id="fovVal">20</span></label>
+    <input type="range" id="fov" min="10" max="60" step="1" value="20" />
+  </section>
+
+  <section>
+    <h2>4. 出力</h2>
+    <div class="row">
+      <div><label>幅(px)</label><input type="number" id="w" value="1536" min="256" max="8192" step="64" /></div>
+      <div><label>高さ(px)</label><input type="number" id="hgt" value="2048" min="256" max="8192" step="64" /></div>
+    </div>
+    <label>背景</label>
+    <select id="bgmode">
+      <option value="transparent">透明</option>
+      <option value="light" selected>薄い灰色 (#f5f5f5)</option>
+      <option value="white">白</option>
+      <option value="green">グリーン (#00ff00)</option>
+    </select>
+    <label>ファイル名</label>
+    <input type="text" id="fname" value="character_front" style="width:100%;padding:6px;border:1px solid var(--line);border-radius:6px;font-size:13px" />
+    <button class="primary" id="save" disabled>PNGを保存</button>
+    <button id="saveAll" disabled>6構図をまとめて保存</button>
+    <p class="hint">保存時は指定サイズで描き直すので、画面の大きさに関係なく高解像度になります。2048px以上はGPUによっては時間がかかります。</p>
+  </section>
+
+  <section>
+    <h2>表情（任意）</h2>
+    <select id="expr"><option value="">なし</option></select>
+    <label>強さ <span class="val" id="exprVal">1.0</span></label>
+    <input type="range" id="exprW" min="0" max="1" step="0.05" value="1" />
+  </section>
+</aside>
+<div id="stage"><canvas id="c"></canvas></div>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.0/lib/three-vrm.module.js",
+  "@pixiv/three-vrm-core": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-core@2.1.0/lib/three-vrm-core.module.js"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+const $ = id => document.getElementById(id);
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(20, 3/4, 0.05, 100);
+
+// VRoid風のフラットな光: 正面やや上から
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(0.5, 1.5, 2); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.6); fill.position.set(-1, 0.5, 1); scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+let vrm = null, bbox = null, height = 1.5, headY = 1.4;
+const state = { yaw: 0, pitch: 0, dist: 3, h: 0.9, fov: 20 };
+
+const presets = {
+  front:  { yaw: 0,   pitch: 0, fov: 20, target: 'center', fit: 'full', w: 1536, h: 2048, name: 'front' },
+  side:   { yaw: 90,  pitch: 0, fov: 20, target: 'center', fit: 'full', w: 1536, h: 2048, name: 'side' },
+  back:   { yaw: 180, pitch: 0, fov: 20, target: 'center', fit: 'full', w: 1536, h: 2048, name: 'back' },
+  bust:   { yaw: 0,   pitch: 0, fov: 20, target: 'chest',  fit: 'bust', w: 1536, h: 1536, name: 'bust' },
+  face:   { yaw: 0,   pitch: 0, fov: 20, target: 'head',   fit: 'face', w: 1536, h: 1536, name: 'face' },
+  face34: { yaw: 35,  pitch: 5, fov: 20, target: 'head',   fit: 'face', w: 1536, h: 1536, name: 'face34' },
+};
+
+function setStatus(t){ $('status').textContent = t; }
+
+async function loadVRM(file){
+  setStatus('読み込み中…');
+  const loader = new GLTFLoader();
+  loader.register(p => new VRMLoaderPlugin(p));
+  try {
+    const buf = await file.arrayBuffer();
+    const gltf = await loader.parseAsync(buf, '');
+    if (!gltf.userData.vrm) throw new Error('VRMではありません');
+    if (vrm) { scene.remove(vrm.scene); VRMUtils.deepDispose(vrm.scene); }
+    vrm = gltf.userData.vrm;
+    VRMUtils.removeUnnecessaryVertices?.(gltf.scene);
+    // VRM0は後ろ向きなので正面に
+    VRMUtils.rotateVRM0?.(vrm);
+    scene.add(vrm.scene);
+    vrm.scene.updateMatrixWorld(true);
+    bbox = new THREE.Box3().setFromObject(vrm.scene);
+    height = bbox.max.y - bbox.min.y;
+    const headNode = vrm.humanoid?.getNormalizedBoneNode('head');
+    if (headNode) { const p = new THREE.Vector3(); headNode.getWorldPosition(p); headY = p.y + 0.08; }
+    else headY = bbox.max.y - 0.12;
+    // 表情一覧
+    const sel = $('expr'); sel.innerHTML = '<option value="">なし</option>';
+    const em = vrm.expressionManager;
+    if (em) for (const name of Object.keys(em.expressionMap)) { const o = document.createElement('option'); o.value = name; o.textContent = name; sel.appendChild(o); }
+    $('save').disabled = false; $('saveAll').disabled = false;
+    setStatus(`読み込み完了: ${file.name}（身長 ${height.toFixed(2)}m）`);
+    applyPreset('front');
+  } catch (e) { console.error(e); setStatus('読み込みに失敗しました: ' + e.message); }
+  finally { URL.revokeObjectURL(url); }
+}
+
+function applyPreset(key){
+  const p = presets[key]; if (!p || !bbox) return;
+  state.yaw = p.yaw; state.pitch = p.pitch; state.fov = p.fov;
+  const cy = (bbox.min.y + bbox.max.y) / 2;
+  if (p.target === 'center') state.h = cy;
+  else if (p.target === 'chest') state.h = headY - 0.22;
+  else state.h = headY - 0.02;
+  // 画角と対象サイズから距離を決める
+  const fovRad = THREE.MathUtils.degToRad(state.fov);
+  let span = height * 1.08;                 // 全身
+  if (p.fit === 'bust') span = 0.55;
+  if (p.fit === 'face') span = 0.30;
+  state.dist = (span / 2) / Math.tan(fovRad / 2);
+  $('w').value = p.w; $('hgt').value = p.h;
+  const base = ($('fname').value.replace(/_(front|side|back|bust|face|face34)$/, '') || 'vrm');
+  $('fname').value = base + '_' + p.name;
+  syncUI(); resize();
+}
+
+function syncUI(){
+  $('yaw').value = state.yaw; $('yawVal').textContent = state.yaw;
+  $('pitch').value = state.pitch; $('pitchVal').textContent = state.pitch;
+  $('dist').value = state.dist.toFixed(2); $('distVal').textContent = state.dist.toFixed(2);
+  $('h').value = state.h.toFixed(2); $('hVal').textContent = state.h.toFixed(2);
+  $('fov').value = state.fov; $('fovVal').textContent = state.fov;
+}
+
+function updateCamera(aspect){
+  const yaw = THREE.MathUtils.degToRad(state.yaw), pitch = THREE.MathUtils.degToRad(state.pitch);
+  const t = new THREE.Vector3(0, state.h, 0);
+  const d = state.dist;
+  camera.position.set(Math.sin(yaw) * Math.cos(pitch) * d, state.h + Math.sin(pitch) * d, Math.cos(yaw) * Math.cos(pitch) * d);
+  camera.fov = state.fov; camera.aspect = aspect; camera.updateProjectionMatrix();
+  camera.lookAt(t);
+}
+
+function applyBackground(){
+  const m = $('bgmode').value;
+  if (m === 'transparent') { renderer.setClearColor(0x000000, 0); }
+  else if (m === 'light') renderer.setClearColor(0xf5f5f5, 1);
+  else if (m === 'white') renderer.setClearColor(0xffffff, 1);
+  else renderer.setClearColor(0x00ff00, 1);
+}
+
+function applyExpression(){
+  if (!vrm?.expressionManager) return;
+  const em = vrm.expressionManager;
+  for (const n of Object.keys(em.expressionMap)) em.setValue(n, 0);
+  const n = $('expr').value; if (n) em.setValue(n, parseFloat($('exprW').value));
+  em.update();
+}
+
+function resize(){
+  const stage = $('stage');
+  const W = parseInt($('w').value), H = parseInt($('hgt').value);
+  const aspect = W / H;
+  let cw = stage.clientWidth - 24, ch = stage.clientHeight - 24;
+  if (cw / ch > aspect) cw = ch * aspect; else ch = cw / aspect;
+  renderer.setSize(Math.floor(cw), Math.floor(ch), true);
+  updateCamera(aspect);
+}
+
+function render(){ applyBackground(); applyExpression(); if (vrm) vrm.update(0); renderer.render(scene, camera); }
+function loop(){ render(); requestAnimationFrame(loop); }
+
+function savePNG(name){
+  const W = parseInt($('w').value), H = parseInt($('hgt').value);
+  const prevW = renderer.domElement.width, prevH = renderer.domElement.height;
+  renderer.setSize(W, H, false);
+  updateCamera(W / H);
+  render();
+  const a = document.createElement('a');
+  a.download = (name || $('fname').value || 'vrm') + '.png';
+  a.href = renderer.domElement.toDataURL('image/png');
+  a.click();
+  renderer.setSize(prevW, prevH, false);
+  resize();
+}
+
+// UI
+['yaw','pitch','dist','h','fov'].forEach(k => $(k).addEventListener('input', e => {
+  state[k] = parseFloat(e.target.value); syncUI(); resize();
+}));
+['w','hgt'].forEach(k => $(k).addEventListener('change', resize));
+$('bgmode').addEventListener('change', render);
+$('exprW').addEventListener('input', e => { $('exprVal').textContent = parseFloat(e.target.value).toFixed(2); });
+document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+$('save').addEventListener('click', () => savePNG());
+$('saveAll').addEventListener('click', async () => {
+  const base = ($('fname').value.replace(/_(front|side|back|bust|face|face34)$/, '') || 'vrm');
+  for (const k of Object.keys(presets)) {
+    applyPreset(k); await new Promise(r => setTimeout(r, 150));
+    savePNG(base + '_' + presets[k].name); await new Promise(r => setTimeout(r, 400));
+  }
+});
+$('file').addEventListener('change', e => { if (e.target.files[0]) loadVRM(e.target.files[0]); });
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) loadVRM(f); });
+window.addEventListener('resize', resize);
+
+resize(); loop();
+</script>
+</body>
+</html>
