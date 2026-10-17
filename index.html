@@ -232,10 +232,10 @@ function applyPose(){
   const bend = a * 0.12;                      // 肘を少しだけ曲げて腕が体にめり込まないように
   const L = h.getNormalizedBoneNode('leftUpperArm'), R = h.getNormalizedBoneNode('rightUpperArm');
   const Ll = h.getNormalizedBoneNode('leftLowerArm'), Rl = h.getNormalizedBoneNode('rightLowerArm');
-  if (L) L.rotation.set(0, 0, -a);
-  if (R) R.rotation.set(0, 0,  a);
-  if (Ll) Ll.rotation.set(0, 0, -bend);
-  if (Rl) Rl.rotation.set(0, 0,  bend);
+  if (L) L.rotation.set(0, 0,  a);
+  if (R) R.rotation.set(0, 0, -a);
+  if (Ll) Ll.rotation.set(0, 0,  bend);
+  if (Rl) Rl.rotation.set(0, 0, -bend);
 }
 
 function applyExpression(){
