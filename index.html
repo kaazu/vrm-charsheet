@@ -95,6 +95,13 @@
   </section>
 
   <section>
+    <h2>ポーズ</h2>
+    <label>腕を下ろす（度） <span class="val" id="armVal">65</span></label>
+    <input type="range" id="arm" min="0" max="90" step="1" value="65" />
+    <p class="hint">0 = Tポーズ（VRMのまま）、65 前後で自然な立ち姿、90 で気をつけ。</p>
+  </section>
+
+  <section>
     <h2>表情（任意）</h2>
     <select id="expr"><option value="">なし</option></select>
     <label>強さ <span class="val" id="exprVal">1.0</span></label>
@@ -173,7 +180,6 @@ async function loadVRM(file){
     setStatus(`読み込み完了: ${file.name}（身長 ${height.toFixed(2)}m）`);
     applyPreset('front');
   } catch (e) { console.error(e); setStatus('読み込みに失敗しました: ' + e.message); }
-  finally { URL.revokeObjectURL(url); }
 }
 
 function applyPreset(key){
@@ -220,6 +226,18 @@ function applyBackground(){
   else renderer.setClearColor(0x00ff00, 1);
 }
 
+function applyPose(){
+  const h = vrm?.humanoid; if (!h) return;
+  const a = THREE.MathUtils.degToRad(parseFloat($('arm').value));
+  const bend = a * 0.12;                      // 肘を少しだけ曲げて腕が体にめり込まないように
+  const L = h.getNormalizedBoneNode('leftUpperArm'), R = h.getNormalizedBoneNode('rightUpperArm');
+  const Ll = h.getNormalizedBoneNode('leftLowerArm'), Rl = h.getNormalizedBoneNode('rightLowerArm');
+  if (L) L.rotation.set(0, 0, -a);
+  if (R) R.rotation.set(0, 0,  a);
+  if (Ll) Ll.rotation.set(0, 0, -bend);
+  if (Rl) Rl.rotation.set(0, 0,  bend);
+}
+
 function applyExpression(){
   if (!vrm?.expressionManager) return;
   const em = vrm.expressionManager;
@@ -238,7 +256,7 @@ function resize(){
   updateCamera(aspect);
 }
 
-function render(){ applyBackground(); applyExpression(); if (vrm) vrm.update(0); renderer.render(scene, camera); }
+function render(){ applyBackground(); applyPose(); applyExpression(); if (vrm) vrm.update(0); renderer.render(scene, camera); }
 function loop(){ render(); requestAnimationFrame(loop); }
 
 function savePNG(name){
@@ -262,6 +280,7 @@ function savePNG(name){
 ['w','hgt'].forEach(k => $(k).addEventListener('change', resize));
 $('bgmode').addEventListener('change', render);
 $('exprW').addEventListener('input', e => { $('exprVal').textContent = parseFloat(e.target.value).toFixed(2); });
+$('arm').addEventListener('input', e => { $('armVal').textContent = e.target.value; });
 document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
 $('save').addEventListener('click', () => savePNG());
 $('saveAll').addEventListener('click', async () => {

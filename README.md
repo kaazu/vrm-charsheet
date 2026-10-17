@@ -11,7 +11,7 @@ A browser tool that loads a VRM file and exports fixed-composition character she
 
 1. https://kaazu.github.io/vrm-charsheet/ を開く（または `index.html` をローカルで開く）
 2. VRM ファイルをドロップ、またはファイル選択で読み込む
-3. 構図プリセットを選ぶ。必要ならカメラ（向き・見下ろし・距離・高さ・画角）と表情を調整
+3. 構図プリセットを選ぶ。必要ならカメラ（向き・見下ろし・距離・高さ・画角）、ポーズ（腕を下ろす角度。0 で T ポーズ）、表情を調整
 4. 出力サイズ・背景・ファイル名を決めて「PNGを保存」。「6構図をまとめて保存」で全プリセットを一括保存
 
 - 保存時は指定サイズ（既定 1536×2048）で描き直すので、画面の大きさに関係なく高解像度で出力されます
@@ -20,7 +20,7 @@ A browser tool that loads a VRM file and exports fixed-composition character she
 
 1. Open https://kaazu.github.io/vrm-charsheet/ (or `index.html` locally)
 2. Drop a `.vrm` file or pick it with the file input
-3. Choose a composition preset; fine-tune the camera (yaw / pitch / distance / height / FOV) and expression if needed
+3. Choose a composition preset; fine-tune the camera (yaw / pitch / distance / height / FOV), pose (arm-lowering angle; 0 keeps the T-pose) and expression if needed
 4. Set output size, background and file name, then **Save PNG**. **Save all 6 presets** exports every preset at once
 
 The image is re-rendered at the requested size (default 1536×2048) on save, so output resolution does not depend on the window size. Everything runs locally in the browser; nothing is uploaded.
